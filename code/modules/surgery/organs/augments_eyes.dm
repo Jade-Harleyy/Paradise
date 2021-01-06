@@ -62,7 +62,7 @@
 	name = "X-ray implant"
 	desc = "These cybernetic eye implants will give you X-ray vision. Blinking is futile."
 	implant_color = "#000000"
-	origin_tech = "materials=4;programming=4;biotech=6;magnets=4"
+	origin_tech = "materials=4;programming=4;biotech=7;magnets=4"
 	vision_flags = SEE_MOBS | SEE_OBJS | SEE_TURFS
 	see_in_dark = 8
 	lighting_alpha = LIGHTING_PLANE_ALPHA_MOSTLY_INVISIBLE
@@ -84,6 +84,8 @@
 	desc = "These cybernetic eyes will display a HUD over everything you see. Maybe."
 	slot = "eye_hud"
 	var/HUD_type = 0
+	/// A list of extension kinds added to the examine text. Things like medical or security records.
+	var/list/examine_extensions = null
 
 /obj/item/organ/internal/cyberimp/eyes/hud/insert(var/mob/living/carbon/M, var/special = 0)
 	..()
@@ -107,6 +109,7 @@
 	origin_tech = "materials=4;programming=4;biotech=4"
 	aug_message = "You suddenly see health bars floating above people's heads..."
 	HUD_type = DATA_HUD_MEDICAL_ADVANCED
+	examine_extensions = list(EXAMINE_HUD_MEDICAL)
 
 /obj/item/organ/internal/cyberimp/eyes/hud/diagnostic
 	name = "Diagnostic HUD implant"
@@ -125,6 +128,7 @@
 	origin_tech = "materials=4;programming=4;biotech=3;combat=3"
 	aug_message = "Job indicator icons pop up in your vision. That is not a certified surgeon..."
 	HUD_type = DATA_HUD_SECURITY_ADVANCED
+	examine_extensions = list(EXAMINE_HUD_SECURITY_READ, EXAMINE_HUD_SECURITY_WRITE)
 
 // Welding shield implant
 /obj/item/organ/internal/cyberimp/eyes/shield

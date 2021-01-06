@@ -7,6 +7,7 @@ GLOBAL_LIST_INIT(department_radio_keys, list(
 	  ":c" = "Command",		"#c" = "Command",		".c" = "Command",
 	  ":n" = "Science",		"#n" = "Science",		".n" = "Science",
 	  ":m" = "Medical",		"#m" = "Medical",		".m" = "Medical",
+	  ":x" = "Procedure",	"#x" = "Procedure",		".x" = "Procedure",
 	  ":e" = "Engineering", "#e" = "Engineering",	".e" = "Engineering",
 	  ":s" = "Security",	"#s" = "Security",		".s" = "Security",
 	  ":w" = "whisper",		"#w" = "whisper",		".w" = "whisper",
@@ -14,7 +15,6 @@ GLOBAL_LIST_INIT(department_radio_keys, list(
 	  ":u" = "Supply",		"#u" = "Supply",		".u" = "Supply",
 	  ":z" = "Service",		"#z" = "Service",		".z" = "Service",
 	  ":p" = "AI Private",	"#p" = "AI Private",	".p" = "AI Private",
-	  ":x" = "cords",		"#x" = "cords",			".x" = "cords",
 
 	  ":R" = "right ear",	"#R" = "right ear",		".R" = "right ear",
 	  ":L" = "left ear",	"#L" = "left ear",		".L" = "left ear",
@@ -23,6 +23,7 @@ GLOBAL_LIST_INIT(department_radio_keys, list(
 	  ":C" = "Command",		"#C" = "Command",		".C" = "Command",
 	  ":N" = "Science",		"#N" = "Science",		".N" = "Science",
 	  ":M" = "Medical",		"#M" = "Medical",		".M" = "Medical",
+	  ":X" = "Procedure",	"#X" = "Procedure",		".X" = "Procedure",
 	  ":E" = "Engineering",	"#E" = "Engineering",	".E" = "Engineering",
 	  ":S" = "Security",	"#S" = "Security",		".S" = "Security",
 	  ":W" = "whisper",		"#W" = "whisper",		".W" = "whisper",
@@ -33,12 +34,12 @@ GLOBAL_LIST_INIT(department_radio_keys, list(
 	  ":$" = "Response Team", "#$" = "Response Team", ".$" = "Response Team",
 	  ":-" = "Special Ops",	"#-" = "Special Ops",	".-" = "Special Ops",
 	  ":_" = "SyndTeam",	"#_" = "SyndTeam",		"._" = "SyndTeam",
-	  ":X" = "cords",		"#X" = "cords",			".X" = "cords"
+	  ":~" = "cords",		"#~" = "cords",			".~" = "cords"
 ))
 
 GLOBAL_LIST_EMPTY(channel_to_radio_key)
 
-proc/get_radio_key_from_channel(var/channel)
+/proc/get_radio_key_from_channel(var/channel)
 	var/key = GLOB.channel_to_radio_key[channel]
 	if(!key)
 		for(var/radio_key in GLOB.department_radio_keys)
@@ -61,7 +62,7 @@ proc/get_radio_key_from_channel(var/channel)
 	return default_language
 
 /mob/living/proc/handle_speech_problems(list/message_pieces, var/verb)
-	var/robot = isSynthetic()
+	var/robot = ismachineperson(src)
 	for(var/datum/multilingual_say_piece/S in message_pieces)
 		if(S.speaking && S.speaking.flags & NO_STUTTER)
 			continue
@@ -251,7 +252,7 @@ proc/get_radio_key_from_channel(var/channel)
 				continue
 
 			if(isobserver(M))
-				if(M.get_preference(CHAT_GHOSTEARS) && client) // The client check is so that ghosts don't have to listen to mice.
+				if(M.get_preference(PREFTOGGLE_CHAT_GHOSTEARS) && client) // The client check is so that ghosts don't have to listen to mice.
 					listening |= M
 					continue
 
@@ -269,12 +270,12 @@ proc/get_radio_key_from_channel(var/channel)
 		M.hear_say(message_pieces, verb, italics, src, speech_sound, sound_vol, sound_frequency)
 		if(M.client)
 			speech_bubble_recipients.Add(M.client)
-	spawn(0)
-		if(loc && !isturf(loc))
-			var/atom/A = loc //Non-turf, let it handle the speech bubble
-			A.speech_bubble("hR[speech_bubble_test]", A, speech_bubble_recipients)
-		else //Turf, leave speech bubbles to the mob
-			speech_bubble("h[speech_bubble_test]", src, speech_bubble_recipients)
+
+	if(loc && !isturf(loc))
+		var/atom/A = loc //Non-turf, let it handle the speech bubble
+		A.speech_bubble("[A.bubble_icon][speech_bubble_test]", A, speech_bubble_recipients)
+	else //Turf, leave speech bubbles to the mob
+		speech_bubble("[bubble_icon][speech_bubble_test]", src, speech_bubble_recipients)
 
 	for(var/obj/O in listening_obj)
 		spawn(0)
@@ -311,7 +312,7 @@ proc/get_radio_key_from_channel(var/channel)
 			if(isnewplayer(M))
 				continue
 
-			if(isobserver(M) && M.get_preference(CHAT_GHOSTSIGHT) && !(M in viewers(src, null)) && client) // The client check makes sure people with ghost sight don't get spammed by simple mobs emoting.
+			if(isobserver(M) && M.get_preference(PREFTOGGLE_CHAT_GHOSTSIGHT) && !(M in viewers(src, null)) && client) // The client check makes sure people with ghost sight don't get spammed by simple mobs emoting.
 				M.show_message(message)
 
 		switch(type)
@@ -351,8 +352,6 @@ proc/get_radio_key_from_channel(var/channel)
 			return
 
 	if(stat)
-		if(stat == DEAD)
-			return say_dead(message_pieces)
 		return
 
 	if(is_muzzled())
@@ -420,7 +419,7 @@ proc/get_radio_key_from_channel(var/channel)
 			continue
 
 		if(isobserver(M))
-			if(M.get_preference(CHAT_GHOSTEARS)) // The client check is so that ghosts don't have to listen to mice.
+			if(M.get_preference(PREFTOGGLE_CHAT_GHOSTEARS)) // The client check is so that ghosts don't have to listen to mice.
 				listening |= M
 				continue
 
@@ -451,21 +450,18 @@ proc/get_radio_key_from_channel(var/channel)
 	var/speech_bubble_test = say_test(message)
 
 	for(var/mob/M in listening)
-		M.hear_say(message_pieces, verb, italics, src)
+		M.hear_say(message_pieces, verb, italics, src, use_voice = FALSE)
 		if(M.client)
 			speech_bubble_recipients.Add(M.client)
 
 	if(eavesdropping.len)
 		stars_all(message_pieces)	//hopefully passing the message twice through stars() won't hurt... I guess if you already don't understand the language, when they speak it too quietly to hear normally you would be able to catch even less.
 		for(var/mob/M in eavesdropping)
-			M.hear_say(message_pieces, verb, italics, src)
+			M.hear_say(message_pieces, verb, italics, src, use_voice = FALSE)
 			if(M.client)
 				speech_bubble_recipients.Add(M.client)
 
-	spawn(0)
-		var/image/I = image('icons/mob/talk.dmi', src, "h[speech_bubble_test]", MOB_LAYER + 1)
-		I.appearance_flags = APPEARANCE_UI_IGNORE_ALPHA
-		flick_overlay(I, speech_bubble_recipients, 30)
+	speech_bubble("[bubble_icon][speech_bubble_test]", src, speech_bubble_recipients)
 
 	if(watching.len)
 		var/rendered = "<span class='game say'><span class='name'>[name]</span> [not_heard].</span>"
@@ -474,7 +470,7 @@ proc/get_radio_key_from_channel(var/channel)
 
 	return 1
 
-/mob/living/speech_bubble(var/bubble_state = "",var/bubble_loc = src, var/list/bubble_recipients = list())
-	var/image/I = image('icons/mob/talk.dmi', bubble_loc, bubble_state, MOB_LAYER + 1)
+/mob/living/speech_bubble(bubble_state = "", bubble_loc = src, list/bubble_recipients = list())
+	var/image/I = image('icons/mob/talk.dmi', bubble_loc, bubble_state, FLY_LAYER)
 	I.appearance_flags = APPEARANCE_UI_IGNORE_ALPHA
-	flick_overlay(I, bubble_recipients, 30)
+	INVOKE_ASYNC(GLOBAL_PROC, /.proc/flick_overlay, I, bubble_recipients, 30)

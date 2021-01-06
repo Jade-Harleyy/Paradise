@@ -29,7 +29,7 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 		return TARGET_INVALID_IS_TARGET
 	if(!ishuman(possible_target.current))
 		return TARGET_INVALID_NOT_HUMAN
-	if(!possible_target.current.stat == DEAD)
+	if(possible_target.current.stat == DEAD)
 		return TARGET_INVALID_DEAD
 	if(!possible_target.key)
 		return TARGET_INVALID_NOCKEY
@@ -54,6 +54,27 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 	if(possible_targets.len > 0)
 		target = pick(possible_targets)
 
+/**
+  * Called when the objective's target goes to cryo.
+  */
+/datum/objective/proc/on_target_cryo()
+	if(owner?.current)
+		to_chat(owner.current, "<BR><span class='userdanger'>You get the feeling your target is no longer within reach. Time for Plan [pick("A","B","C","D","X","Y","Z")]. Objectives updated!</span>")
+		SEND_SOUND(owner.current, 'sound/ambience/alarm4.ogg')
+	target = null
+	INVOKE_ASYNC(src, .proc/post_target_cryo)
+
+/**
+  * Called a tick after when the objective's target goes to cryo.
+  */
+/datum/objective/proc/post_target_cryo()
+	find_target()
+	if(!target)
+		GLOB.all_objectives -= src
+		owner?.objectives -= src
+		qdel(src)
+	owner?.announce_objectives()
+
 /datum/objective/assassinate
 	martyr_compatible = 1
 
@@ -67,7 +88,7 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 
 /datum/objective/assassinate/check_completion()
 	if(target && target.current)
-		if(target.current.stat == DEAD || iszombie(target))
+		if(target.current.stat == DEAD)
 			return 1
 		if(issilicon(target.current) || isbrain(target.current)) //Borgs/brains/AIs count as dead for traitor objectives. --NeoFite
 			return 1
@@ -98,6 +119,11 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 		return 0
 	return 1
 
+/datum/objective/mutiny/on_target_cryo()
+	// We don't want revs to get objectives that aren't for heads of staff. Letting
+	// them win or lose based on cryo is silly so we remove the objective.
+	qdel(src)
+
 /datum/objective/maroon
 	martyr_compatible = 1
 
@@ -111,7 +137,7 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 
 /datum/objective/maroon/check_completion()
 	if(target && target.current)
-		if(target.current.stat == DEAD || iszombie(target))
+		if(target.current.stat == DEAD)
 			return 1
 		if(!target.current.ckey)
 			return 1
@@ -168,7 +194,7 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 	if(!target) //If it's a free objective.
 		return 1
 	if(target.current)
-		if(target.current.stat == DEAD || iszombie(target))
+		if(target.current.stat == DEAD)
 			return 0
 		if(issilicon(target.current))
 			return 0
@@ -262,7 +288,7 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 		return 0
 	if(isbrain(owner.current))
 		return 0
-	if(!owner.current || owner.current.stat == DEAD || iszombie(owner))
+	if(!owner.current || owner.current.stat == DEAD)
 		return 0
 	if(SSticker.force_ending) //This one isn't their fault, so lets just assume good faith
 		return 1
@@ -317,7 +343,7 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 	explanation_text = "Die a glorious death."
 
 /datum/objective/die/check_completion()
-	if(!owner.current || owner.current.stat == DEAD || isbrain(owner.current) || iszombie(owner))
+	if(!owner.current || owner.current.stat == DEAD || isbrain(owner.current))
 		return 1
 	if(issilicon(owner.current) && owner.current != owner.original)
 		return 1
@@ -573,9 +599,10 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 // /vg/; Vox Inviolate for humans :V
 /datum/objective/minimize_casualties
 	explanation_text = "Minimise casualties."
+
 /datum/objective/minimize_casualties/check_completion()
-	if(owner.kills.len>5) return 0
-	return 1
+	return TRUE
+
 
 //Vox heist objectives.
 
@@ -781,16 +808,7 @@ GLOBAL_LIST_INIT(potential_theft_objectives, (subtypesof(/datum/theft_objective)
 	explanation_text = "Follow the Inviolate. Minimise death and loss of resources."
 
 /datum/objective/heist/inviolate_death/check_completion()
-	var/vox_allowed_kills = 3 // The number of people the vox can accidently kill. Mostly a counter to people killing themselves if a raider touches them to force fail.
-	var/vox_total_kills = 0
-
-	var/datum/game_mode/heist/H = SSticker.mode
-	for(var/datum/mind/raider in H.raiders)
-		vox_total_kills += raider.kills.len // Kills are listed in the mind; uses this to calculate vox kills
-
-	if(vox_total_kills > vox_allowed_kills) return 0
-	return 1
-
+	return TRUE
 
 // Traders
 // These objectives have no check_completion, they exist only to tell Sol Traders what to aim for.

@@ -102,11 +102,10 @@
 	var/shield_key = FALSE
 	var/turf/spawn_turf
 
-/mob/living/simple_animal/hostile/syndicate/melee/autogib/depot/New()
-	..()
+/mob/living/simple_animal/hostile/syndicate/melee/autogib/depot/Initialize(mapload)
+	. = ..()
 	name = "[name] [pick(GLOB.last_names)]"
-	// Do not attempt to move this code to Initialize() or LateInitialize(). Doing so with other objects has caused bugs in the past, because assigning "depotarea" may not work there.
-	depotarea = areaMaster
+	depotarea = get_area(src)
 	spawn_turf = get_turf(src)
 
 
@@ -260,7 +259,7 @@
 	alert_on_shield_breach = TRUE
 
 /mob/living/simple_animal/hostile/syndicate/melee/autogib/depot/armory/Initialize(mapload)
-	..()
+	. = ..()
 	if(prob(50))
 		// 50% chance of switching to extremely dangerous ranged variant
 		melee_damage_lower = 10
@@ -362,7 +361,8 @@
 	atmos_requirements = list("min_oxy" = 0, "max_oxy" = 0, "min_tox" = 0, "max_tox" = 0, "min_co2" = 0, "max_co2" = 0, "min_n2" = 0, "max_n2" = 0)
 	minbodytemp = 0
 	mob_size = MOB_SIZE_TINY
-	flying = 1
+	flying = TRUE
+	bubble_icon = "syndibot"
 	gold_core_spawnable = HOSTILE_SPAWN
 	del_on_death = 1
 	deathmessage = "is smashed into pieces!"

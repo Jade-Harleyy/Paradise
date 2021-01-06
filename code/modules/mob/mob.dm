@@ -19,11 +19,10 @@
 		for(var/datum/alternate_appearance/AA in viewing_alternate_appearances)
 			AA.viewers -= src
 		viewing_alternate_appearances = null
-	logs.Cut()
-	..()
-	return QDEL_HINT_HARDDEL
+	LAssailant = null
+	return ..()
 
-/mob/Initialize()
+/mob/Initialize(mapload)
 	GLOB.mob_list += src
 	if(stat == DEAD)
 		GLOB.dead_mob_list += src
@@ -31,7 +30,7 @@
 		GLOB.alive_mob_list += src
 	set_focus(src)
 	prepare_huds()
-	..()
+	. = ..()
 
 /atom/proc/prepare_huds()
 	hud_list = list()
@@ -127,14 +126,12 @@
 // self_message (optional) is what the src mob hears.
 // deaf_message (optional) is what deaf people will see.
 // hearing_distance (optional) is the range, how many tiles away the message can be heard.
-/mob/audible_message(var/message, var/deaf_message, var/hearing_distance, var/self_message)
+/mob/audible_message(message, deaf_message, hearing_distance)
 	var/range = 7
 	if(hearing_distance)
 		range = hearing_distance
 	var/msg = message
 	for(var/mob/M in get_mobs_in_view(range, src))
-		if(self_message && M == src)
-			msg = self_message
 		M.show_message(msg, 2, deaf_message, 1)
 
 	// based on say code
@@ -156,12 +153,12 @@
 // message is the message output to anyone who can hear.
 // deaf_message (optional) is what deaf people will see.
 // hearing_distance (optional) is the range, how many tiles away the message can be heard.
-/atom/proc/audible_message(var/message, var/deaf_message, var/hearing_distance)
+/atom/proc/audible_message(message, deaf_message, hearing_distance)
 	var/range = 7
 	if(hearing_distance)
 		range = hearing_distance
 	for(var/mob/M in get_mobs_in_view(range, src))
-		M.show_message( message, 2, deaf_message, 1)
+		M.show_message(message, 2, deaf_message, 1)
 
 /mob/proc/findname(msg)
 	for(var/mob/M in GLOB.mob_list)
@@ -481,6 +478,41 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 		return 0 //Unsupported slot
 		//END HUMAN
 
+/mob/proc/get_visible_mobs()
+	var/list/seen_mobs = list()
+	for(var/mob/M in view(src))
+		seen_mobs += M
+
+	return seen_mobs
+
+/**
+ * Returns an assoc list which contains the mobs in range and their "visible" name.
+ * Mobs out of view but in range will be listed as unknown. Else they will have their visible name
+*/
+/mob/proc/get_telepathic_targets()
+	var/list/validtargets = new /list()
+	var/turf/T = get_turf(src)
+	var/list/mobs_in_view = get_visible_mobs()
+
+	for(var/mob/living/M in range(14, T))
+		if(M && M.mind)
+			if(M == src)
+				continue
+			var/mob_name
+			if(M in mobs_in_view)
+				mob_name = M.name
+			else
+				mob_name = "Unknown entity"
+			var/i = 0
+			var/result_name
+			do
+				result_name = mob_name
+				if(i++)
+					result_name += " ([i])" // Avoid dupes
+			while(validtargets[result_name])
+			validtargets[result_name] = M
+	return validtargets
+
 // If you're looking for `reset_perspective`, that's a synonym for this proc.
 /mob/proc/reset_perspective(atom/A)
 	if(client)
@@ -568,19 +600,22 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 
 	if(next_move >= world.time)
 		return
-	if(!src || !isturf(src.loc))
-		return 0
-	if(istype(A, /obj/effect/temp_visual/point))
-		return 0
+	if(!isturf(loc) || istype(A, /obj/effect/temp_visual/point))
+		return FALSE
 
 	var/tile = get_turf(A)
 	if(!tile)
-		return 0
+		return FALSE
 
 	changeNext_move(CLICK_CD_POINT)
 	var/obj/P = new /obj/effect/temp_visual/point(tile)
 	P.invisibility = invisibility
-	return 1
+	if(get_turf(src) != tile)
+		// Start off from the pointer and make it slide to the pointee
+		P.pixel_x = (x - A.x) * 32
+		P.pixel_y = (y - A.y) * 32
+		animate(P, 0.5 SECONDS, pixel_x = A.pixel_x, pixel_y = A.pixel_y, easing = QUAD_EASING)
+	return TRUE
 
 /mob/proc/ret_grab(obj/effect/list_container/mobl/L as obj, flag)
 	if((!( istype(l_hand, /obj/item/grab) ) && !( istype(r_hand, /obj/item/grab) )))
@@ -698,7 +733,7 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 
 		flavor_text = msg
 
-/mob/proc/print_flavor_text(var/shrink = 1)
+/mob/proc/print_flavor_text(var/shrink = TRUE)
 	if(flavor_text && flavor_text != "")
 		var/msg = replacetext(flavor_text, "\n", " ")
 		if(length(msg) <= 40 || !shrink)
@@ -754,7 +789,7 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 
 	if(client.holder && (client.holder.rights & R_ADMIN))
 		is_admin = 1
-	else if(stat != DEAD || istype(src, /mob/new_player))
+	else if(stat != DEAD || isnewplayer(src))
 		to_chat(usr, "<span class='notice'>You must be observing to use this!</span>")
 		return
 
@@ -882,6 +917,9 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 		return
 	if(!Adjacent(usr))
 		return
+	if(IsFrozen(src) && !is_admin(usr))
+		to_chat(usr, "<span class='boldannounce'>Interacting with admin-frozen players is not permitted.</span>")
+		return
 	if(isLivingSSD(src) && M.client && M.client.send_ssd_warning(src))
 		return
 	show_inv(usr)
@@ -926,6 +964,7 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 	show_stat_turf_contents()
 
 	statpanel("Status") // We only want alt-clicked turfs to come before Status
+	stat(null, "Round ID: [GLOB.round_id ? GLOB.round_id : "NULL"]")
 
 	if(mob_spell_list && mob_spell_list.len)
 		for(var/obj/effect/proc_holder/spell/S in mob_spell_list)
@@ -939,7 +978,7 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 		if(statpanel("MC")) //looking at that panel
 			var/turf/T = get_turf(client.eye)
 			stat("Location:", COORD(T))
-			stat("CPU:", "[world.cpu]")
+			stat("CPU:", "[Master.formatcpu()]")
 			stat("Instances:", "[num2text(world.contents.len, 10)]")
 			GLOB.stat_entry()
 			stat("Server Time:", time_stamp())
@@ -1096,21 +1135,14 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 		return
 
 	//find a viable mouse candidate
-	var/mob/living/simple_animal/mouse/host
-	var/obj/machinery/atmospherics/unary/vent_pump/vent_found
-	var/list/found_vents = list()
-	for(var/obj/machinery/atmospherics/unary/vent_pump/v in SSair.atmos_machinery)
-		if(!v.welded && v.z == src.z)
-			found_vents.Add(v)
-	if(found_vents.len)
-		vent_found = pick(found_vents)
-		host = new /mob/living/simple_animal/mouse(vent_found.loc)
-	else
-		to_chat(src, "<span class='warning'>Unable to find any unwelded vents to spawn mice at.</span>")
-
-	if(host)
+	var/list/found_vents = get_valid_vent_spawns(min_network_size = 0, station_levels_only = FALSE, z_level = z)
+	if(length(found_vents))
+		var/obj/vent_found = pick(found_vents)
+		var/mob/living/simple_animal/mouse/host = new(vent_found.loc)
 		host.ckey = src.ckey
 		to_chat(host, "<span class='info'>You are now a mouse. Try to avoid interaction with players, and do not give hints away that you are more than a simple rodent.</span>")
+	else
+		to_chat(src, "<span class='warning'>Unable to find any unwelded vents to spawn mice at.</span>")
 
 /mob/proc/assess_threat() //For sec bot threat assessment
 	return 5
@@ -1237,10 +1269,13 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 	create_log_in_list(debug_log, text, collapse, world.timeofday)
 
 /mob/proc/create_log(log_type, what, target = null, turf/where = get_turf(src))
-	LAZYINITLIST(logs[log_type])
-	var/list/log_list = logs[log_type]
+	if(!ckey)
+		return
+	var/real_ckey = ckey
+	if(ckey[1] == "@") // Admin aghosting will do this
+		real_ckey = copytext(ckey, 2)
 	var/datum/log_record/record = new(log_type, src, what, target, where, world.time)
-	log_list.Add(record)
+	GLOB.logging.add_log(real_ckey, record)
 
 /proc/create_log_in_list(list/target, text, collapse = TRUE, last_log)//forgive me code gods for this shitcode proc
 	//this proc enables lovely stuff like an attack log that looks like this: "[18:20:29-18:20:45]21x John Smith attacked Andrew Jackson with a crowbar."
@@ -1298,8 +1333,6 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 	.["Remove Language"] = "?_src_=vars;remlanguage=[UID()]"
 	.["Add Organ"] = "?_src_=vars;addorgan=[UID()]"
 	.["Remove Organ"] = "?_src_=vars;remorgan=[UID()]"
-
-	.["Fix NanoUI"] = "?_src_=vars;fix_nano=[UID()]"
 
 	.["Add Verb"] = "?_src_=vars;addverb=[UID()]"
 	.["Remove Verb"] = "?_src_=vars;remverb=[UID()]"
@@ -1390,3 +1423,29 @@ GLOBAL_LIST_INIT(slot_equipment_priority, list( \
 ///Force set the mob nutrition
 /mob/proc/set_nutrition(change)
 	nutrition = max(0, change)
+
+/mob/clean_blood(clean_hands = TRUE, clean_mask = TRUE, clean_feet = TRUE)
+	. = ..()
+	if(bloody_hands && clean_hands)
+		bloody_hands = 0
+		update_inv_gloves()
+	if(l_hand)
+		if(l_hand.clean_blood())
+			update_inv_l_hand()
+	if(r_hand)
+		if(r_hand.clean_blood())
+			update_inv_r_hand()
+	if(back)
+		if(back.clean_blood())
+			update_inv_back()
+	if(wear_mask && clean_mask)
+		if(wear_mask.clean_blood())
+			update_inv_wear_mask()
+	if(clean_feet)
+		feet_blood_color = null
+		qdel(feet_blood_DNA)
+		bloody_feet = list(BLOOD_STATE_HUMAN = 0, BLOOD_STATE_XENO = 0,  BLOOD_STATE_NOT_BLOODY = 0)
+		blood_state = BLOOD_STATE_NOT_BLOODY
+		update_inv_shoes()
+	update_icons()	//apply the now updated overlays to the mob
+

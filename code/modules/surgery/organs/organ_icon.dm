@@ -107,7 +107,10 @@ GLOBAL_LIST_EMPTY(limb_icon_cache)
 			add_overlay(eyes_icon)
 
 	if(owner.lip_style && (LIPS in dna.species.species_traits))
-		add_overlay(mutable_appearance('icons/mob/human_face.dmi', "lips_[owner.lip_style]_s")) //Hefty icon not necessary.
+		var/icon/lips_icon = new('icons/mob/human_face.dmi', "lips_[owner.lip_style]_s")
+		lips_icon.Blend(owner.lip_color, ICON_MULTIPLY)
+		mob_icon.Blend(lips_icon, ICON_OVERLAY)
+		add_overlay(lips_icon)
 
 	var/head_marking = owner.m_styles["head"]
 	if(head_marking)
@@ -138,7 +141,7 @@ GLOBAL_LIST_EMPTY(limb_icon_cache)
 				add_overlay(facial_s)
 
 		if(h_style)
-			if(!owner.isSynthetic() || (owner.isSynthetic() && ((owner.head && (owner.head.flags & BLOCKHEADHAIR)) || (owner.wear_mask && (owner.wear_mask.flags & BLOCKHEADHAIR)))))
+			if(!ismachineperson(owner) || (ismachineperson(owner) && ((owner.head && (owner.head.flags & BLOCKHEADHAIR)) || (owner.wear_mask && (owner.wear_mask.flags & BLOCKHEADHAIR)))))
 				var/datum/sprite_accessory/hair_style = GLOB.hair_styles_full_list[h_style]
 				if(hair_style && ((dna.species.name in hair_style.species_allowed) || (dna.species.bodyflags & ALL_RPARTS)))
 					var/icon/hair_s = new /icon("icon" = hair_style.icon, "icon_state" = "[hair_style.icon_state]_s")
@@ -159,10 +162,13 @@ GLOBAL_LIST_EMPTY(limb_icon_cache)
 		new_icon_state = "[icon_name][gendered_icon ? "_f" : ""]"
 	else
 		if(gendered_icon)
-			if(dna.GetUIState(DNA_UI_GENDER))
-				gender = "f"
-			else
-				gender = "m"
+			switch(dna.GetUITriState(DNA_UI_GENDER))
+				if(DNA_GENDER_FEMALE)
+					gender = "f"
+				if(DNA_GENDER_MALE)
+					gender = "m"
+				else
+					gender = "f"	//Default to "f" (per line 162). Using a pick("m", "f") will make different body parts different genders for the same character.
 		if(limb_name == "head")
 			var/obj/item/organ/external/head/head_organ = src
 			head_organ.handle_alt_icon()
